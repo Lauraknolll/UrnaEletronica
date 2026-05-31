@@ -2,18 +2,32 @@
 #include <SD.h>
 #include "candidato.h"
 #include "gerencia_cartao.h"
+#include "gerencia_display.h"
 #include "teclado.h"
 #include "votacao.h"
+#include "Preferences.h"
 
 #define MAX_CANDIDATOS 20
-#define BUZZERPIN 33 //pra depois que mudar de teclado
+#define BUZZERPIN 15 
+#define ESP_RASP_TX 17 //pino para o envio de dado para rasp
+#define ESP_RASP_RX 16 //pino para o recebimento de dado da rasp
 
 // put function declarations here:
-//máximo de 20 candidatos
 Candidato candidatos[MAX_CANDIDATOS];
 int quantidade_candidatos = 0;
-int nulos = 0;
+Votacao* votacao;
+Preferences nvs;
+int totalVotos;
+int NovaEleicao = 1;
+
+//funções
 void faz_barulho();
+bool mandar_sinal_pra_rasp();
+String receber_sinal_da_rasp();
+void gravar_resultados_NVS();
+void grava_resultado_final();
+void recupera_dados_NVS();
+void zerar_eleicao();
 
 void setup() {
   // put your setup code here, to run once:
@@ -21,69 +35,78 @@ void setup() {
   //define a velocidade de comunicação 
   Serial.begin(115200);
 
+  //inicializa buzzer
+  pinMode(BUZZERPIN, OUTPUT);
+  digitalWrite(BUZZERPIN, LOW);
+
   inicializar_cartao();
-  //leio os candidatos no arquivo /candidatos.txt do cartão SD e guardo no vetor dos candidatos
-  //ler_arquivo(SD, "/candidatos.txt", &quantidade_candidatos, candidatos);
-  //Serial.printf("Leitura concluída com sucesso. \n");
-  //agora candidatos já contém todos os candidatos
+  ler_arquivo(SD, "/candidatos.txt", &quantidade_candidatos, candidatos);
 
-  //candidatos pro teste do teclado
-  candidatos[0] = {10,"fulaninha", 20};
-  candidatos[1] = {20, "ciclaninho",5};
-  nulos = 15;
-  quantidade_candidatos = 2;
+  votacao = new Votacao(candidatos, quantidade_candidatos);
 
-  SD.remove("/resultados.txt");
+  //printo os candidatos cadastrados no terminal só pros testes
+  for(int i = 0; i < quantidade_candidatos; i++)
+  {
+    Serial.printf("%s : %d\n",candidatos[i].nome, candidatos[i].numero);
+  }
 
-  Serial.printf("Resultados: \n");
-  //chama função
+  Serial.printf("Iniciando votação! \n");
+
+  inicializa_display();
+
+  nvs.begin("urna", false); //namespace urna
+
+  if(NovaEleicao)
+  {
+    int totalVotos = 0;
+    zerar_eleicao();
+  }
+  else
+  {
+    recupera_dados_NVS();
+    // recupero quantas pessoas já votaram
     for(int i = 0; i < quantidade_candidatos; i++)
     {
-      Serial.printf("%s : %d\n",candidatos[i].nome, candidatos[i].quantidade_votos);
-
-      String linha = String(candidatos[i].nome) + " : " + String(candidatos[i].quantidade_votos);
-      escrever_arquivo(SD, "/resultados.txt", linha.c_str());
+      totalVotos += votacao->getVotos(&candidatos[i]);
     }
 
-    Serial.printf("Nulos : %d\n", nulos);
-    String linha_nulos = "Nulos : " + String(nulos);
-    escrever_arquivo(SD, "/resultados.txt", linha_nulos.c_str());
+    totalVotos += votacao->getNulos();
+  }
 
-  //Serial.printf("Iniciando votação! \n");
-
-  //pinMode(BUZZERPIN, OUTPUT);
+  pinMode(BUZZERPIN, OUTPUT);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  /*int voto = ler_teclas();
+  //fica lendo o que está recebendo do teclado
+  int tecla = ler_teclas();
+  int voto = -1;
 
-  //se um voto foi confimado
-  if(voto != -1)
+  String sinal;
+  sinal = receber_sinal_da_rasp();
+  //quando receber o sinal escreve Digite seu voto porque tá liberado o voto?
+
+  //apertou tecla válida
+  if (tecla != 'F')
   {
-    computa_votos(candidatos, &quantidade_candidatos, voto, &nulos);
-    faz_barulho();
-    //manda sinal de confirmação pra rasp
-    //usando o 99 pra gravar os resultados
-    //remove o que tinha antes pra sobrescrever, será que fica certo? 
-    //SD.remove("/resultados.txt");
-    if (voto == 99) 
+    voto = votacao->identifica_voto(tecla);
+  
+    //confirmou o voto
+    if(voto != -1)
     {
-      Serial.printf("Resultados: \n");
-      //chama função
-      for(int i = 0; i < quantidade_candidatos; i++)
+      votacao->computa_votos(voto);
+      gravar_resultados_NVS();
+      totalVotos++;
+      //fingindo que tinha que votar 10 pessoas só, mas tem que receber um sinal que acabou
+      if(totalVotos == 10)
       {
-        Serial.printf("%s : %d\n",candidatos[i].nome, candidatos[i].quantidade_votos);
-
-        String linha = String(candidatos[i].nome) + " : " + String(candidatos[i].quantidade_votos);
-        escrever_arquivo(SD, "/resultados.txt", linha.c_str());
+        grava_resultado_final();
       }
-
-      Serial.printf("Nulos : %d\n", nulos);
-      String linha_nulos = "Nulos : " + String(nulos);
-      escrever_arquivo(SD, "/resultados.txt", linha_nulos.c_str());
+      faz_barulho();
+      //manda sinal que confirmou o voto
+      mandar_sinal_pra_rasp();
     }
-  }*/
+  }
 }
 
 // put function definitions here:
@@ -103,4 +126,76 @@ void faz_barulho()
   digitalWrite(BUZZERPIN, HIGH);
   delay(180);
   digitalWrite(BUZZERPIN, LOW);
+}
+
+//função que manda um sinal para rasp quando e retorna true se o sinal foi enviado
+bool mandar_sinal_pra_rasp()
+{
+  Serial2.println("1"); //Manda um sinal confirmando o voto para a rasp
+  return true;          //Retorna true para indicar que o sinal foi enviado.
+}
+
+//função que recebe um sinal da rasp e retorna o sinal recebido para liberar o voto, ou vazio caso não tenha recebido nada
+String receber_sinal_da_rasp()
+{
+  if(Serial2.available())                         //verifica a disponibilidade do sinal
+  {
+    String sinal = Serial2.readStringUntil('\n'); //lê o sinal até a quebra de linha
+    return sinal;                                 //retorna o sinal recebido(estamos tratando como string)
+  }
+  return "";                                      //retorna vazio caso não esteja recebendo nada.
+}
+
+//grava resultados na mem flash da esp
+void gravar_resultados_NVS()
+{
+  for(int i = 0; i < quantidade_candidatos; i++)
+  {
+    //caixinha do candidato
+    String key = "cand" + String(votacao->getNumero(&candidatos[i]));
+    //grava o total de votos do candidato
+    nvs.putInt(key.c_str(), votacao->getVotos(&candidatos[i]));
+
+    //pra saber se está funcionando
+    Serial.printf("%s = %d\n",key.c_str(), nvs.getInt(key.c_str(), 0));
+  }
+  //grava nulos no fim
+  nvs.putInt("nulos", votacao->getNulos());
+  //pra saber se está funcionando
+  Serial.printf("nulos = %d\n", nvs.getInt("nulos", 0));
+}
+
+//grava resultados no SD
+void grava_resultado_final()
+{
+  for(int i = 0; i < quantidade_candidatos; i++)
+  {
+    String linha = String(votacao->getNome(&candidatos[i])) + " : " + String(votacao->getVotos(&candidatos[i]));
+    escrever_arquivo(SD, "/resultados.txt", linha.c_str());
+  }
+
+  String linha_nulos = "Nulos : " + String(votacao->getNulos());
+  escrever_arquivo(SD, "/resultados.txt", linha_nulos.c_str());
+}
+
+//recupera dados da mem flash da esp
+void recupera_dados_NVS()
+{
+  for(int i = 0; i < quantidade_candidatos; i++)
+  {
+    String key = "cand" + String(votacao->getNumero(&candidatos[i]));
+    // procura se tem alguma coisa na caixinha
+    int votos = nvs.getInt(key.c_str(), 0);
+    
+    votacao->setVotos(&candidatos[i], votos);
+  }
+
+  int nulos = nvs.getInt("nulos", 0);
+  votacao->setNulos(nulos);
+}
+
+//apaga mem flash da esp
+void zerar_eleicao()
+{
+    nvs.clear();
 }

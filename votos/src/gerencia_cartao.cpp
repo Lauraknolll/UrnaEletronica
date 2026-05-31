@@ -9,10 +9,7 @@
 #define MOSI  23
 #define CS  5
 
-
-//SPIClass spi = SPIClass(VSPI);
-
-void inicializar_cartao ()
+void inicializar_cartao()
 {
 
     SPI.begin(SCK, MISO, MOSI);
@@ -67,7 +64,7 @@ void ler_arquivo(fs::FS &fs, const char * path, int *quant, Candidato candidatos
   file.close();
 }
 
-void escrever_arquivo (fs::FS &fs, const char * path, const char * message)
+void escrever_arquivo(fs::FS &fs, const char * path, const char * message)
 {
   Serial.printf("Escrevendo no arquivo: %s\n", path);
 
@@ -90,6 +87,10 @@ void escrever_arquivo (fs::FS &fs, const char * path, const char * message)
   file.close();
 }
 
+void limpar_arquivo(fs::FS &fs, const char * path)
+{
+  fs.remove(path);
+}
 
 
 

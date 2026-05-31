@@ -3,6 +3,6 @@
 
 #include <Keypad.h>
 
-int ler_teclas();
+char ler_teclas();
 
 #endif 
