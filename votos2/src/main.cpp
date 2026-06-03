@@ -28,13 +28,21 @@ void gravar_resultados_NVS();
 void grava_resultado_final();
 void recupera_dados_NVS();
 void zerar_eleicao();
-
+HardwareSerial SerialESP(2);
 void setup() {
   // put your setup code here, to run once:
 
   //define a velocidade de comunicação 
   Serial.begin(115200);
 
+  SerialESP.begin(
+      115200,
+      SERIAL_8N1,
+      16,   // RX
+      17    // TX
+  );
+  SerialESP.setTimeout(100000); // 100 segundos
+  Serial.println("ESP32 pronto");
   //inicializa buzzer
   pinMode(BUZZERPIN, OUTPUT);
   digitalWrite(BUZZERPIN, LOW);
@@ -79,6 +87,52 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   //fica lendo o que está recebendo do teclado
+  String msg = "Vazio";
+/*   if (SerialESP.available()) {
+        msg = SerialESP.readStringUntil('\n');
+
+        Serial.print("Recebido: ");
+        Serial.println(msg);
+
+        SerialESP.println("Foi recebido " + msg);
+  }
+   */
+  while(true){
+    if (SerialESP.available()) {
+        
+        msg = SerialESP.readStringUntil('\n');
+        /* for (int i = 0; i < msg.length(); i++) {
+          Serial.print("Pos ");
+          Serial.print(i);
+          Serial.print(": ");
+          Serial.println((int)msg[i]);
+         }
+        Serial.print("Recebido: ");
+        Serial.print(msg);
+        Serial.println(String("[") + msg + "]");*/
+
+        SerialESP.println("Foi recebido " + msg);
+        Serial.print("Mensagem foi enviada para rasp");
+   
+    }
+    if (msg == "Pode votar"){
+          Serial.println("Entrou no IF");
+
+          break;
+    }
+    // para testar o final
+    //delay(1000);
+    
+    
+  }
+  Serial.println("Saiu do While");
+  Serial.print("Recebido: ");
+  Serial.println(msg );
+  //delay(5000);
+  bool retorno = mandar_sinal_pra_rasp();
+  Serial.print("Mandou o sinal para a RASP de FIM: ");
+  Serial.println(retorno);
+
   int tecla = ler_teclas();
   int voto = -1;
 
@@ -131,7 +185,8 @@ void faz_barulho()
 //função que manda um sinal para rasp quando e retorna true se o sinal foi enviado
 bool mandar_sinal_pra_rasp()
 {
-  Serial2.println("1"); //Manda um sinal confirmando o voto para a rasp
+  //Serial2.println("Votação realizada"); //Manda um sinal confirmando o voto para a rasp
+  SerialESP.println("Votação realizada"); //Manda um sinal confirmando o voto para a rasp
   return true;          //Retorna true para indicar que o sinal foi enviado.
 }
 
