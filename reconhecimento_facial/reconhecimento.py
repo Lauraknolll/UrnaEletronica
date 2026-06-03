@@ -2,8 +2,36 @@ import face_recognition
 import cv2
 import sqlite3
 import numpy as np
+
+import serial
 import time
 
+from RPLCD.i2c import CharLCD
+from time import sleep
+
+lcd = CharLCD(
+    i2c_expander='PCF8574',
+    address=0x27,
+    port=1,
+    cols=16,
+    rows=2
+)
+
+lcd.clear()
+
+def aguarda_votacao():
+    resposta = None
+    while True:
+        resposta = ser.readline().decode().strip()
+        if resposta == "Votação realizada":
+            print("ESP informou FIM FIM  FIM FIM FIM FIM")
+            break
+
+ser = serial.Serial(
+    '/dev/serial0',
+    115200,
+    timeout=1
+)
 contador_frames = 0
 autenticados = set()
 
@@ -18,6 +46,26 @@ rows = cursor.fetchall()
 
 known_names = []
 known_encodings = []
+# nome = "Joaquino"
+# print(f"{nome} autenticada(o)!")
+# # mensagem para a pessoa poder votar
+# mensagem = "Pode votar\n"
+
+# ser.write(mensagem.encode())
+# time.sleep(1)
+# resposta = ser.readline().decode().strip()
+
+# if resposta:
+#     print(f"Usuário {nome} Autenticado", resposta)
+#     print(f"Usuário {nome} pode iniciar votação", resposta)
+
+# resposta = None
+
+# while True:
+#     resposta = ser.readline().decode().strip()
+#     if resposta == "Votação realizada":
+#         print("ESP informou FIM FIM  FIM FIM FIM FIM")
+#         break
 
 for name, encoding_bytes in rows:
     # Converter bytes pra numpy array
@@ -35,8 +83,11 @@ print("Base carregada para ", len(known_names), "pessoas")
 
 # abre a fonte principal de vídeo 0
 cap = cv2.VideoCapture(0)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
 while True:
+    print("O PROCESSO COMECOU DE VOLTAAAAA")
     ret, frame = cap.read()
 
     #se falhou em capturar a imagem
@@ -53,6 +104,34 @@ while True:
     face_encodings = face_recognition.face_encodings(rgb, face_locations)
 
     for (top, right, bottom, left), face_enc in zip(face_locations, face_encodings):
+        #enquadramento
+        cx_imagem = 320
+        cy_imagem = 240
+
+        cx_face = (left + right) // 2
+        cy_face = (top + bottom) // 2
+
+        erro_x = cx_face - 320
+        erro_y = cy_face - 240
+
+        if erro_x < -165:
+            print("Mova para a esquerda")
+            lcd.clear()
+            lcd.write_string("Mova para a esquerda")
+            
+        elif erro_x > 165:
+            print("Mova para a direita")
+            lcd.clear()
+            lcd.write_string("Mova para a direita")
+
+        
+
+        else:
+            print("Centralizado")
+            lcd.clear()
+            lcd.write_string("Centralizado")
+
+
 
         # valores padrão se não conhecer a pessoa 
         nome = "DESCONHECIDO"
@@ -92,6 +171,20 @@ while True:
         if (contador_frames > 20) and nome not in autenticados:
             autenticados.add(nome)
             print(f"{nome} autenticada(o)!")
+            #   mensagem para a pessoa poder votar
+            mensagem = "Pode votar\n"
+            ser.write(mensagem.encode())
+            time.sleep(1)
+            resposta = ser.readline().decode().strip()       
+            if resposta:
+                print(f"Usuário {nome} Autenticado", resposta)
+                print(f"Usuário {nome} pode iniciar votação", resposta)
+                lcd.clear()
+                lcd.write_string(f"Autenticada(o)!")
+                lcd.cursor_pos = (1, 0)
+                lcd.write_string("Pode votar!")
+                aguarda_votacao()
+                
         
     cv2.resize(frame, (640, 480))
     cv2.imshow("Reconhecimento Facial", frame)
@@ -101,6 +194,6 @@ while True:
         print(autenticados)
         break
 
-# desliga a câmera
+#desliga a câmera
 cap.release()
 cv2.destroyAllWindows()
