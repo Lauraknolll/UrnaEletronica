@@ -9,13 +9,11 @@ char matriz_teclas[qtdLinhas][qtdColunas] = {
   {'7', '8', '9'},
   {'*', '0', '#'}
 };
-//pino 1 conectado no 13, 12, 14, 27, 26, 25, 33, 32 no pino 8 
-//teclado 4 colunas
-//byte PinosqtdLinhas[qtdLinhas] = {32, 33, 25, 26}; //conecta as linhas aos pinouts do teclado
-//byte PinosqtdColunas[qtdColunas] = {27, 14, 12, 13}; //conecta as colunas aos pinouts do teclado
-//teclado 3 colunas
-byte PinosqtdLinhas[qtdLinhas] = {33, 32, 27, 26}; //conecta as linhas aos pinouts do teclado
-byte PinosqtdColunas[qtdColunas] = {25, 21, 22}; //conecta as colunas aos pinouts do teclado
+
+//pino 1 conectado no 13, 22, 21, 27, 26, 25, 33, 32 no pino 8 
+//teclado 4 colunas sem a última coluna que é a 13
+byte PinosqtdLinhas[qtdLinhas] = {32, 33, 25, 26}; //conecta as linhas aos pinouts do teclado
+byte PinosqtdColunas[qtdColunas] = {27, 21, 22}; //conecta as colunas aos pinouts do teclado
 
 Keypad meuteclado = Keypad( makeKeymap(matriz_teclas), PinosqtdLinhas, PinosqtdColunas, qtdLinhas, qtdColunas);
 

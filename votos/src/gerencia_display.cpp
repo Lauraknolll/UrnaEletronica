@@ -70,6 +70,43 @@ void escreve_digitado(String num)
     tft.print(num);
 }
 
+void escreve_modoAdmin()
+{
+    limpa_tela();
+
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextSize(1);
+    tft.setCursor(10, 20);
+    tft.print("Modo Administrador");
+
+    tft.setCursor(10, 40);
+    tft.print("1 - Iniciar nova\n    eleicao.");
+
+    tft.setCursor(10, 70);
+    tft.print("2 - Continuar \n    ultima eleicao.");
+
+    tft.setCursor(10, 100);
+    tft.print("3 - Encerrar \n    eleicao atual.");
+
+    tft.setCursor(10, 130);
+    tft.print("4 - Sair.");
+}
+
+void escreve_senha(String mascara)
+{
+    limpa_tela();
+
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextSize(1);
+
+    tft.setCursor(10, 60);
+    tft.print("Digite a senha:");
+
+    int x = (128 - mascara.length() * 6) / 2;
+    tft.setCursor(x, 100);
+    tft.print(mascara);
+}
+
 void escreve_foto(String path)
 {
     tft.fillScreen(ST77XX_BLACK);

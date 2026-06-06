@@ -7,5 +7,7 @@ void escreve_candidato(int num, String nome);
 void escreve_digitado(String num);
 void escreve_foto(String path);
 void limpa_tela();
+void escreve_modoAdmin();
+void escreve_senha(String mascara);
 
 #endif
