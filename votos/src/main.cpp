@@ -8,14 +8,14 @@
 #include "Preferences.h"
 
 #define MAX_CANDIDATOS 20
-#define BUZZERPIN 15 
-#define ESP_RASP_TX 17 //pino para o envio de dado para rasp
-#define ESP_RASP_RX 16 //pino para o recebimento de dado da rasp
+#define BUZZERPIN 15
+#define ESP_RASP_TX 17 // pino para o envio de dado para rasp
+#define ESP_RASP_RX 16 // pino para o recebimento de dado da rasp
 
 // put function declarations here:
 Candidato candidatos[MAX_CANDIDATOS];
 int quantidade_candidatos = 0;
-Votacao* votacao;
+Votacao *votacao;
 Preferences nvs;
 int totalVotos;
 int NovaEleicao;
@@ -23,7 +23,7 @@ HardwareSerial SerialESP(2);
 const int PINO_ADMIN = 13;
 const String SENHA_ADMIN = "9*52*0";
 
-//funções
+// funções
 void faz_barulho();
 void mandar_sinal_pra_rasp(String msg);
 void gravar_resultados_NVS();
@@ -33,25 +33,31 @@ void zerar_eleicao();
 void modoAcesso();
 void modoAdministrador();
 
-void setup() {
+void setup()
+{
   // put your setup code here, to run once:
+  pinMode(ESP_RASP_RX, INPUT);
+  pinMode(ESP_RASP_TX, OUTPUT);
 
-  //define a velocidade de comunicação 
+  digitalWrite(ESP_RASP_TX, LOW);
+  //========================================
+  // define a velocidade de comunicação
   Serial.begin(115200);
 
   // define comunicação serial com a RASP
-  SerialESP.begin(115200, SERIAL_8N1,
-    16,   // RX
-    17    // TX
-  );
-  SerialESP.setTimeout(100000); // 100 segundos
+  // SerialESP.begin(115200, SERIAL_8N1,
+  //   16,   // RX
+  //   17    // TX
+  // );
+  // SerialESP.setTimeout(100000); // 100 segundos
+  //==========================================
   Serial.println("ESP32 pronto");
 
-  //inicializa buzzer
+  // inicializa buzzer
   pinMode(BUZZERPIN, OUTPUT);
   digitalWrite(BUZZERPIN, LOW);
 
-  //inicializa botão de admin
+  // inicializa botão de admin
   pinMode(PINO_ADMIN, INPUT_PULLUP);
 
   inicializar_cartao();
@@ -59,22 +65,22 @@ void setup() {
 
   votacao = new Votacao(candidatos, quantidade_candidatos);
 
-  //printo os candidatos cadastrados no terminal só pros testes
-  for(int i = 0; i < quantidade_candidatos; i++)
+  // printo os candidatos cadastrados no terminal só pros testes
+  for (int i = 0; i < quantidade_candidatos; i++)
   {
-    Serial.printf("%s : %d\n",candidatos[i].nome, candidatos[i].numero);
+    Serial.printf("%s : %d\n", candidatos[i].nome, candidatos[i].numero);
   }
 
   Serial.printf("Iniciando votação! \n");
 
   inicializa_display();
 
-  nvs.begin("urna", false); //namespace urna
+  nvs.begin("urna", false); // namespace urna
 
-  // sempre recupera a anterior 
-  NovaEleicao = 0; 
+  // sempre recupera a anterior
+  NovaEleicao = 0;
 
-  if(NovaEleicao)
+  if (NovaEleicao)
   {
     int totalVotos = 0;
     zerar_eleicao();
@@ -83,7 +89,7 @@ void setup() {
   {
     recupera_dados_NVS();
     // recupero quantas pessoas já votaram
-    for(int i = 0; i < quantidade_candidatos; i++)
+    for (int i = 0; i < quantidade_candidatos; i++)
     {
       totalVotos += votacao->getVotos(&candidatos[i]);
     }
@@ -94,9 +100,10 @@ void setup() {
   pinMode(BUZZERPIN, OUTPUT);
 }
 
-void loop() {
+void loop()
+{
   // put your main code here, to run repeatedly:
-  
+
   // se está acionando o botão para entrar no modo admin
   if (digitalRead(PINO_ADMIN) == LOW)
   {
@@ -104,53 +111,59 @@ void loop() {
 
     while (digitalRead(PINO_ADMIN) == LOW)
     {
-        if (millis() - inicio > 5000) // conta se segurou por 5 segundos
-        {
-            modoAcesso();
-            break;
-        }
+      if (millis() - inicio > 5000) // conta se segurou por 5 segundos
+      {
+        modoAcesso();
+        break;
+      }
     }
   }
 
   String msg = "";
+  Serial.print(Serial.available());
+  // if(SerialESP.available()) // se a comunicação tá estabelecida com a rasp
+  // {
+  //   msg = SerialESP.readStringUntil('\n');
+  //   Serial.println(msg);
+  // if(msg == "Pode votar")
 
-  //if(SerialESP.available()) // se a comunicação tá estabelecida com a rasp
-  //{
-    //msg = SerialESP.readStringUntil('\n');
+  // while (1){
+  if ((digitalRead(ESP_RASP_RX) == HIGH))
+  {
+    escreve_info("Digite seu voto");
+    while (true)
+    {
+      int tecla = ler_teclas();
+      int voto = -1;
 
-    //if(msg == "Pode votar")
-    //{ 
-      //escreve_info("Digite seu voto");
-      //while(true)
-      //{
-        int tecla = ler_teclas();
-        int voto = -1;
+      // apertou tecla válida
+      if (tecla != 'F')
+      {
+        voto = votacao->identifica_voto(tecla);
 
-        //apertou tecla válida
-        if (tecla != 'F')
+        // confirmou o voto
+        if (voto != -1)
         {
-          voto = votacao->identifica_voto(tecla);
-        
-          //confirmou o voto
-          if(voto != -1)
-          {
-            votacao->computa_votos(voto);
-            gravar_resultados_NVS();
-            totalVotos++;
-            faz_barulho();
-            //manda sinal que confirmou o voto
-            mandar_sinal_pra_rasp("Votação realizada");
-            //break;
-          }
+          votacao->computa_votos(voto);
+          gravar_resultados_NVS();
+          totalVotos++;
+          faz_barulho();
+          // manda sinal que confirmou o voto
+          digitalWrite(ESP_RASP_TX, HIGH);
+          delay(50);
+          digitalWrite(ESP_RASP_TX, LOW);
+          // mandar_sinal_pra_rasp("Votação realizada");
+          break;
         }
-      //}
-    //}
-  //}
+      }
+    }
+  }
 }
-
+//}
+//}
 
 // put function definitions here:
-//função que aciona o buzzer pra dizer que confirmou o voto
+// função que aciona o buzzer pra dizer que confirmou o voto
 void faz_barulho()
 {
   digitalWrite(BUZZERPIN, HIGH);
@@ -168,37 +181,37 @@ void faz_barulho()
   digitalWrite(BUZZERPIN, LOW);
 }
 
-//função que manda um sinal para rasp quando e retorna true se o sinal foi enviado
+// função que manda um sinal para rasp quando e retorna true se o sinal foi enviado
 void mandar_sinal_pra_rasp(String msg)
 {
-  SerialESP.println(msg); //Manda um sinal confirmando o voto para a rasp
+  SerialESP.println(msg); // Manda um sinal confirmando o voto para a rasp
 }
 
-//grava resultados na mem flash da esp
+// grava resultados na mem flash da esp
 void gravar_resultados_NVS()
 {
-  for(int i = 0; i < quantidade_candidatos; i++)
+  for (int i = 0; i < quantidade_candidatos; i++)
   {
-    //caixinha do candidato
+    // caixinha do candidato
     String key = "cand" + String(votacao->getNumero(&candidatos[i]));
-    //grava o total de votos do candidato
+    // grava o total de votos do candidato
     nvs.putInt(key.c_str(), votacao->getVotos(&candidatos[i]));
 
-    //pra saber se está funcionando
-    Serial.printf("%s = %d\n",key.c_str(), nvs.getInt(key.c_str(), 0));
+    // pra saber se está funcionando
+    Serial.printf("%s = %d\n", key.c_str(), nvs.getInt(key.c_str(), 0));
   }
-  //grava nulos no fim
+  // grava nulos no fim
   nvs.putInt("nulos", votacao->getNulos());
-  //pra saber se está funcionando
+  // pra saber se está funcionando
   Serial.printf("nulos = %d\n", nvs.getInt("nulos", 0));
 }
 
-//grava resultados no SD
+// grava resultados no SD
 void grava_resultado_final()
 {
   limpar_arquivo(SD, "/resultados.txt");
 
-  for(int i = 0; i < quantidade_candidatos; i++)
+  for (int i = 0; i < quantidade_candidatos; i++)
   {
     String linha = String(votacao->getNome(&candidatos[i])) + " : " + String(votacao->getVotos(&candidatos[i]));
     escrever_arquivo(SD, "/resultados.txt", linha.c_str());
@@ -211,15 +224,15 @@ void grava_resultado_final()
   escrever_arquivo(SD, "/resultados.txt", totalvotos.c_str());
 }
 
-//recupera dados da mem flash da esp
+// recupera dados da mem flash da esp
 void recupera_dados_NVS()
 {
-  for(int i = 0; i < quantidade_candidatos; i++)
+  for (int i = 0; i < quantidade_candidatos; i++)
   {
     String key = "cand" + String(votacao->getNumero(&candidatos[i]));
     // procura se tem alguma coisa na caixinha
     int votos = nvs.getInt(key.c_str(), 0);
-    
+
     votacao->setVotos(&candidatos[i], votos);
   }
 
@@ -227,11 +240,11 @@ void recupera_dados_NVS()
   votacao->setNulos(nulos);
 }
 
-//apaga mem flash da esp
+// apaga mem flash da esp
 void zerar_eleicao()
 {
-    nvs.clear();
-    totalVotos = 0;
+  nvs.clear();
+  totalVotos = 0;
 }
 
 void modoAcesso()
@@ -241,23 +254,23 @@ void modoAcesso()
   String mascara = "";
   int tentativas = 0;
 
-  while(true)
+  while (true)
   {
     char tecla = ler_teclas();
-    if(tecla != 'F')
+    if (tecla != 'F')
     {
       senha += tecla;
       mascara += '*';
       escreve_senha(mascara);
-      if(tecla == '#')
-      { 
+      if (tecla == '#')
+      {
         senha.remove(senha.length() - 1);
         if (senha == SENHA_ADMIN)
         {
           modoAdministrador();
           break;
         }
-        else 
+        else
         {
           escreve_info("Senha incorreta!!");
           delay(1500);
@@ -269,7 +282,7 @@ void modoAcesso()
       }
     }
 
-    if(tentativas >= 3)
+    if (tentativas >= 3)
     {
       escreve_info("ACESSO NEGADO!!");
       delay(1000);
@@ -277,46 +290,45 @@ void modoAcesso()
       break;
     }
   }
-
 }
 
 void modoAdministrador()
 {
   escreve_modoAdmin();
 
-  while(true)
+  while (true)
   {
     int tecla = ler_teclas();
 
     switch (tecla)
     {
-      case '1':
-      {
-        zerar_eleicao();
-        recupera_dados_NVS();              
-        escreve_info("Iniciando nova \n      eleicao.");
-        delay(2000);
-        escreve_info("Digite seu voto");
-        return;
-      }
-      case '2':
-      {
-        escreve_info("Digite seu voto");
-        return;
-      }
-      case '3':
-      {
-        grava_resultado_final();
-        mandar_sinal_pra_rasp("Votação encerrada");
-        escreve_info("Votos gravados com \n      sucesso!");
-        delay(1000);
-        modoAdministrador();
-      }
-      case '4':
-      {
-        escreve_info("Digite seu voto");
-        return;
-      }
+    case '1':
+    {
+      zerar_eleicao();
+      recupera_dados_NVS();
+      escreve_info("Iniciando nova \n      eleicao.");
+      delay(2000);
+      escreve_info("Digite seu voto");
+      return;
+    }
+    case '2':
+    {
+      escreve_info("Digite seu voto");
+      return;
+    }
+    case '3':
+    {
+      grava_resultado_final();
+      mandar_sinal_pra_rasp("Votação encerrada");
+      escreve_info("Votos gravados com \n      sucesso!");
+      delay(1000);
+      modoAdministrador();
+    }
+    case '4':
+    {
+      escreve_info("Digite seu voto");
+      return;
+    }
     }
   }
 }

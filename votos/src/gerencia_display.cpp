@@ -35,7 +35,7 @@ void inicializa_display()
 
     delay(5000);
 
-    escreve_info("Digite seu voto");
+    escreve_info("Aguardando");
 }
 
 void escreve_info(String informacao)
